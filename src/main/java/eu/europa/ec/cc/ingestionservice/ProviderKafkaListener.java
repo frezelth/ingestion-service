@@ -4,31 +4,37 @@ import java.util.List;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.BatchMessageListener;
+import org.springframework.kafka.listener.ConsumerSeekAware;
 
-public class ProviderKafkaListener implements BatchMessageListener<byte[],byte[]> {
+public class ProviderKafkaListener implements BatchMessageListener<byte[],byte[]>,
+    ConsumerSeekAware {
 
-  private final String provider;
-  private final MessageCounter counter;
+  private final String topicName;
+  private final ThrottlingController counter;
   private final KafkaTemplate<byte[], byte[]> kafkaTemplate;
+  private final String eventTopic;
 
   public ProviderKafkaListener(
-      String provider,
-      MessageCounter counter,
-      KafkaTemplate<byte[],byte[]> kafkaTemplate) {
-    this.provider = provider;
+      String topicName,
+      ThrottlingController counter,
+      KafkaTemplate<byte[],byte[]> kafkaTemplate,
+      String eventTopic) {
+    this.topicName = topicName;
     this.counter = counter;
     this.kafkaTemplate = kafkaTemplate;
+    this.eventTopic = eventTopic;
   }
 
   @Override
   public void onMessage(List<ConsumerRecord<byte[], byte[]>> data) {
     try {
       for (ConsumerRecord<byte[], byte[]> record : data) {
-        while (!counter.canSendMessage(provider)) {
-          Thread.sleep(30);
+        long sleepTime = counter.findThrottlingDelay(topicName, record.partition());
+        if (sleepTime != 0){
+          Thread.sleep(sleepTime);
         }
-        kafkaTemplate.send("cc_dev_event", record.key(), record.value());
-        counter.onMessageSent(provider);
+        kafkaTemplate.send(eventTopic, record.key(), record.value());
+        counter.onMessageSent(topicName, record.partition());
       }
     } catch (InterruptedException e){
       throw new RuntimeException(e);

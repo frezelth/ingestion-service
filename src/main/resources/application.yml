@@ -1,4 +1,6 @@
 application:
+  event-topic: cc_dev_event
+  provider-topic-prefix: cc_dev_provider_event-
   providersThrottling:
     flex: 1
     camunda: 2
@@ -13,7 +15,9 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
       value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+    listener:
+      concurrency: 3
 
 logging:
   level:
-    eu.europa.ec.cc: debug
+    eu.europa.ec.cc: trace
